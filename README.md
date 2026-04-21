@@ -34,4 +34,4 @@ Coming soon.
 
 ## Support
 
-Pipeline is free and will stay free. If it's useful to you, consider supporting development on Patreon (coming soon)
+Pipeline is free and will stay free. If it's useful to you, consider supporting development on [Patreon](#).
