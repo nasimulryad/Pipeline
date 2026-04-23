@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../supabase'
-import { styles } from '../styles/styles'
+import { getStyles } from '../styles/styles'
+import { useTheme } from '../styles/ThemeContext'
 import Pipeline from './Pipeline'
 import Widgets from './Widgets'
 import AddJobModal from './AddJobModal'
@@ -8,6 +9,8 @@ import JobDetailModal from './JobDetailModal'
 import ProfileModal from './ProfileModal'
 
 function Dashboard({ session }) {
+  const { theme } = useTheme()
+  const styles = getStyles(theme)
   const [jobs, setJobs] = useState([])
   const [loading, setLoading] = useState(true)
   const [showAddJob, setShowAddJob] = useState(false)
@@ -15,6 +18,8 @@ function Dashboard({ session }) {
   const [showProfile, setShowProfile] = useState(false)
   const [profileComplete, setProfileComplete] = useState(true)
   const [displayName, setDisplayName] = useState('')
+  const [cachedProfile, setCachedProfile] = useState(null)
+  const [cachedResumes, setCachedResumes] = useState([])
 
   useEffect(() => {
     fetchJobs()
@@ -31,19 +36,27 @@ function Dashboard({ session }) {
   }
 
   const fetchProfile = async () => {
-    const { data } = await supabase
+    const { data: profileData } = await supabase
       .from('profiles')
-      .select('display_name, resume_path')
+      .select('*')
       .eq('id', session.user.id)
       .single()
 
-    if (data) {
-      setDisplayName(data.display_name || '')
-      // Red dot shows if either display name OR resume is missing
-      setProfileComplete(!!(data.display_name && data.resume_path))
+    const { data: resumeData } = await supabase
+      .from('resumes')
+      .select('*')
+      .eq('user_id', session.user.id)
+      .order('created_at', { ascending: false })
+
+    if (profileData) {
+      setCachedProfile(profileData)
+      setDisplayName(profileData.display_name || '')
+      setProfileComplete(!!(profileData.display_name && resumeData && resumeData.length > 0))
     } else {
       setProfileComplete(false)
     }
+
+    if (resumeData) setCachedResumes(resumeData)
   }
 
   const handleLogout = async () => {
@@ -56,16 +69,32 @@ function Dashboard({ session }) {
         <h1 style={styles.headerLogo}>Pipeline</h1>
         <div style={styles.headerRight}>
 
-          <div style={dashboardStyles.profileButtonWrapper} onClick={() => setShowProfile(true)}>
-            <button style={dashboardStyles.profileButton}>
-              {/* Show display name if set, otherwise fall back to email */}
+          <div style={{position: 'relative', cursor: 'pointer'}} onClick={() => setShowProfile(true)}>
+            <button style={styles.profileButton}>
               {displayName || session.user.email}
             </button>
-            {!profileComplete && <span style={dashboardStyles.notificationDot} />}
+            {!profileComplete && (
+              <span style={{
+                position: 'absolute',
+                top: '-4px',
+                right: '-4px',
+                width: '10px',
+                height: '10px',
+                background: theme.danger,
+                borderRadius: '50%',
+                border: `2px solid ${theme.bgBase}`
+              }} />
+            )}
           </div>
 
-          <button style={styles.addButton} onClick={() => setShowAddJob(true)}>+ Add Job</button>
-          <button style={styles.logoutButton} onClick={handleLogout}>Log out</button>
+          <button style={styles.addButton} onClick={() => setShowAddJob(true)}>
+            + Add Job
+          </button>
+
+          <button style={styles.logoutButton} onClick={handleLogout}>
+            Log Out
+          </button>
+
         </div>
       </div>
 
@@ -77,16 +106,21 @@ function Dashboard({ session }) {
       {showProfile && (
         <ProfileModal
           session={session}
+          cachedProfile={cachedProfile}
+          cachedResumes={cachedResumes}
           onClose={() => setShowProfile(false)}
           onProfileUpdate={() => { fetchProfile(); setShowProfile(false) }}
+          onResumeChange={fetchProfile}
         />
       )}
 
       {showAddJob && (
-        <AddJobModal
-          onClose={() => setShowAddJob(false)}
-          onSave={() => { fetchJobs(); setShowAddJob(false) }}
-          userId={session.user.id}
+     <AddJobModal
+        onClose={() => setShowAddJob(false)}
+        onSave={() => { fetchJobs(); setShowAddJob(false) }}
+        userId={session.user.id}
+        cachedResumes={cachedResumes}
+        onResumeChange={fetchProfile}
         />
       )}
 
@@ -97,34 +131,9 @@ function Dashboard({ session }) {
           onUpdate={() => { fetchJobs(); setSelectedJob(null) }}
         />
       )}
+
     </div>
   )
-}
-
-const dashboardStyles = {
-  profileButtonWrapper: {
-    position: 'relative',
-    cursor: 'pointer',
-  },
-  profileButton: {
-    padding: '8px 16px',
-    background: 'transparent',
-    border: '1px solid #2d3148',
-    borderRadius: '6px',
-    color: '#9ca3af',
-    cursor: 'pointer',
-    fontSize: '0.85rem',
-  },
-  notificationDot: {
-    position: 'absolute',
-    top: '-4px',
-    right: '-4px',
-    width: '10px',
-    height: '10px',
-    background: '#ef4444',
-    borderRadius: '50%',
-    border: '2px solid #0f1117',
-  }
 }
 
 export default Dashboard

@@ -1,7 +1,7 @@
-export const STAGES = [
-  { key: 'considering', label: 'Considering', color: '#6366f1' },
-  { key: 'applied', label: 'Applied', color: '#3b82f6' },
-  { key: 'in_progress', label: 'In Progress', color: '#f59e0b' },
-  { key: 'offer', label: 'Offer', color: '#10b981' },
-  { key: 'rejected', label: 'Rejected', color: '#ef4444' },
+export const STAGE_KEYS = [
+  { key: 'considering', label: 'Considering', colorKey: 'stageConsidering' },
+  { key: 'applied', label: 'Applied', colorKey: 'stageApplied' },
+  { key: 'in_progress', label: 'In Progress', colorKey: 'stageInProgress' },
+  { key: 'offer', label: 'Offer', colorKey: 'stageOffer' },
+  { key: 'rejected', label: 'Rejected', colorKey: 'stageRejected' },
 ]

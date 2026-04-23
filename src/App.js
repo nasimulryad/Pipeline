@@ -1,10 +1,13 @@
 import { useState, useEffect } from 'react'
 import { supabase } from './supabase'
-import { styles } from './styles/styles'
+import { getStyles } from './styles/styles'
+import { useTheme } from './styles/ThemeContext'
 import Auth from './components/Auth'
 import Dashboard from './components/Dashboard'
 
 function App() {
+  const { theme } = useTheme()
+  const styles = getStyles(theme)
   const [session, setSession] = useState(null)
   const [loading, setLoading] = useState(true)
 
