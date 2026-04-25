@@ -18,7 +18,9 @@ if (!changedFiles) {
 // Get the diff content
 let diff = ''
 try {
-  diff = execSync('git diff HEAD~1').toString().slice(0, 6000)
+  const rawDiff = execSync('git diff HEAD~1').toString()
+  if (rawDiff.length > 6000) console.warn('Warning: diff truncated, some changes omitted.')
+  diff = rawDiff.slice(0, 6000)
 } catch (e) {
   diff = 'Could not get diff.'
 }
@@ -31,24 +33,28 @@ try {
   commitInfo = 'Unknown commit'
 }
 
+// Sanitize commit hash
+const commitHash = commitInfo.split(' ')[0].replace(/[^a-f0-9]/g, '')
+
 // Check if this commit was already reviewed
 if (!fs.existsSync('qa-reports')) fs.mkdirSync('qa-reports')
 
 const existingReports = fs.readdirSync('qa-reports')
-const commitHash = commitInfo.split(' ')[0]
-const alreadyReviewed = existingReports.some(r => r.includes(commitHash))
+const alreadyReviewed = existingReports.some(r => r.startsWith(`report-${commitHash}-`))
 
 if (alreadyReviewed) {
   console.log(`QA already completed for commit ${commitHash}. Skipping.`)
   process.exit(0)
 }
 
-// Get file contents for changed JS files
+// Get file contents for changed JS/JSX files — exclude qa.js itself
 let fileContents = ''
 changedFiles.split('\n')
-  .filter(f => f.endsWith('.js') && fs.existsSync(f))
+  .filter(f => /\.(js|jsx|ts|tsx)$/.test(f) && fs.existsSync(f) && f !== 'qa.js')
   .forEach(f => {
-    fileContents += `\n\n=== ${f} ===\n${fs.readFileSync(f, 'utf8').slice(0, 2000)}`
+    const content = fs.readFileSync(f, 'utf8')
+    if (content.length > 2000) console.warn(`Warning: ${f} truncated to 2000 chars.`)
+    fileContents += `\n\n=== ${f} ===\n${content.slice(0, 2000)}`
   })
 
 // Build timestamp for report filename
@@ -81,18 +87,20 @@ Be specific and actionable. Focus on meaningful issues only.
 
 Write the full report as plain markdown text in your response.`
 
-// Write prompt to temp file
-const tempPrompt = 'qa-temp-prompt.txt'
-fs.writeFileSync(tempPrompt, prompt)
-
 console.log(`Reviewing commit: ${commitInfo}`)
 console.log(`Changed files:\n${changedFiles}`)
 console.log('Sending to Claude...')
 
-// Use spawn to pipe the prompt file to claude via stdin
+// Use spawn to pipe prompt to claude via stdin
 const claude = spawn('claude', ['--print'], {
   stdio: ['pipe', 'pipe', 'pipe']
 })
+
+// Kill claude if it hangs for more than 120 seconds
+const timeout = setTimeout(() => {
+  console.log('\n⏱ Timeout — Claude took too long. Killing process.')
+  claude.kill()
+}, 120000)
 
 let result = ''
 let errorOutput = ''
@@ -107,10 +115,10 @@ claude.stderr.on('data', data => {
 })
 
 claude.on('close', code => {
-  if (fs.existsSync(tempPrompt)) fs.unlinkSync(tempPrompt)
+  clearTimeout(timeout)
 
   if (result) {
-    const reportContent = `# QA Report\n\n**Commit:** ${commitInfo}\n**Date:** ${now.toLocaleString()}\n\n**Files Changed:**\n${changedFiles.split('\n').map(f => `- ${f}`).join('\n')}\n\n## Review\n\n${result}`
+    const reportContent = `# QA Report\n\n**Commit:** ${commitInfo}\n**Date:** ${now.toLocaleString()}\n\n**Files Changed:**\n${changedFiles.split('\n').map(f => `- ${f}`).join('\n')}\n\n## Review\n\n${result}\n`
     fs.writeFileSync(reportFile, reportContent)
     console.log(`\n✅ QA report saved to ${reportFile}`)
   } else {
