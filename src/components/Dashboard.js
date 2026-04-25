@@ -29,7 +29,7 @@ function Dashboard({ session }) {
   const fetchJobs = async () => {
     const { data, error } = await supabase
       .from('jobs')
-      .select('*')
+      .select('*, resumes(id, display_name, file_path)')
       .order('created_at', { ascending: false })
     if (!error) setJobs(data)
     setLoading(false)
@@ -115,12 +115,12 @@ function Dashboard({ session }) {
       )}
 
       {showAddJob && (
-     <AddJobModal
-        onClose={() => setShowAddJob(false)}
-        onSave={() => { fetchJobs(); setShowAddJob(false) }}
-        userId={session.user.id}
-        cachedResumes={cachedResumes}
-        onResumeChange={fetchProfile}
+        <AddJobModal
+          onClose={() => setShowAddJob(false)}
+          onSave={() => { fetchJobs(); setShowAddJob(false) }}
+          userId={session.user.id}
+          cachedResumes={cachedResumes}
+          onResumeChange={fetchProfile}
         />
       )}
 
@@ -129,6 +129,7 @@ function Dashboard({ session }) {
           job={selectedJob}
           onClose={() => setSelectedJob(null)}
           onUpdate={() => { fetchJobs(); setSelectedJob(null) }}
+          cachedResumes={cachedResumes}
         />
       )}
 
